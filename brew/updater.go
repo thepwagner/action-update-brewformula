@@ -3,17 +3,23 @@ package brew
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"path/filepath"
+	"strings"
 
+	"github.com/google/go-github/v33/github"
+	"github.com/sirupsen/logrus"
 	"github.com/thepwagner/action-update/updater"
 )
 
 type Updater struct {
-	root string
+	root    string
+	ghRepos *github.RepositoriesService
 }
 
 func NewUpdater(root string) *Updater {
-	return &Updater{root: root}
+	gh := github.NewClient(http.DefaultClient)
+	return &Updater{root: root, ghRepos: gh.Repositories}
 }
 
 func (u Updater) Name() string {
@@ -38,7 +44,13 @@ func (u Updater) Dependencies(context.Context) ([]updater.Dependency, error) {
 }
 
 func (u Updater) Check(ctx context.Context, dep updater.Dependency, filter func(string) bool) (*updater.Update, error) {
-	panic("implement me")
+	switch {
+	case strings.HasPrefix(dep.Path, "https://github.com/"):
+		return checkGitHubRelease(ctx, u.ghRepos, dep)
+	default:
+		logrus.WithField("path", dep.Path).Warn("unsupported path")
+		return nil, nil
+	}
 }
 
 func (u Updater) ApplyUpdate(ctx context.Context, update updater.Update) error {
