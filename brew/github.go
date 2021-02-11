@@ -24,6 +24,20 @@ func semverIsh(s string) string {
 	return ""
 }
 
+func semverSort(versions []string) []string {
+	sort.Slice(versions, func(i, j int) bool {
+		// Prefer strict semver ordering:
+		if c := semver.Compare(semverIsh(versions[i]), semverIsh(versions[j])); c > 0 {
+			return true
+		} else if c < 0 {
+			return false
+		}
+		// Failing that, prefer the most specific version:
+		return strings.Count(versions[i], ".") > strings.Count(versions[j], ".")
+	})
+	return versions
+}
+
 func checkGitHubRelease(ctx context.Context, repos *github.RepositoriesService, dep updater.Dependency) (*updater.Update, error) {
 	releases, err := listGitHubReleases(ctx, repos, dep)
 	if err != nil {
