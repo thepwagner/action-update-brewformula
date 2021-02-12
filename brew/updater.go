@@ -87,9 +87,11 @@ func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash
 		return updatedGitHubHash(ctx, u.client, u.ghRepos, update, oldHash)
 	case strings.HasPrefix(update.Path, "https://golang.org/dl/go"):
 		return updatedGolangHash(ctx, u.client, update, oldHash)
+	default:
+		return updatedApacheHash(ctx, u.client, update, oldHash)
 	}
-	return "", nil
 }
+
 
 
 func (u Updater) eachFormula(process func(path, formula string) error) error {

@@ -8,7 +8,7 @@ import (
 
 var (
 	urlRe           = regexp.MustCompile(`url ["'](.*)["']`)
-	shasumRe        = regexp.MustCompile(`sha256 ["'](.*)["']`)
+	shasumRe        = regexp.MustCompile(`sha(1|256) ["'](.*)["']`)
 	versionVarRe    = regexp.MustCompile(`(?i)version\s*=?\s+["'](.*)["']`)
 	versionTemplate = regexp.MustCompile(`(?i)#{version}`)
 	semverRe        = regexp.MustCompile(`\d+\.\d+\.\d+`)
@@ -43,7 +43,7 @@ func parseFormulaDeps(formula string) ([]updater.Dependency, error) {
 
 func parseFormulaHashes(formula string) (sums []string) {
 	for _, m := range shasumRe.FindAllStringSubmatch(formula, -1) {
-		sums = append(sums, m[1])
+		sums = append(sums, m[2])
 	}
 	return
 }

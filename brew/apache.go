@@ -84,3 +84,14 @@ func getListing(dep updater.Dependency) (string, string, error) {
 	}
 	return "", "", fmt.Errorf("could not find version in URL %s", dep.Path)
 }
+
+func updatedApacheHash(ctx context.Context, client *http.Client, update updater.Update, oldHash string) (string, error) {
+	oldURL := versionTemplate.ReplaceAllString(update.Path, update.Previous)
+	if ok, err := isHashAsset(ctx, client, oldURL, oldHash); err != nil {
+		return "", err
+	} else if !ok {
+		return "", nil
+	}
+
+	return updatedHashFromAsset(ctx, client, oldURL, update, oldHash)
+}

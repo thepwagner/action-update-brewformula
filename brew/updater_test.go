@@ -82,6 +82,15 @@ func TestUpdater_Update_Golang(t *testing.T) {
 	assert.NotContains(t, formula, "3918e6cc85e7eaaa6f859f1bdbaac772e7a825b0eb423c63d3ae68b21f84b844")
 }
 
+func TestUpdater_Update_Hadoop(t *testing.T) {
+	// SHA is updated from index
+	update, formula := testUpdate(t, "hadoop", hadoop260, "2.6.5")
+	assert.Contains(t, formula, update.Next)
+	assert.NotContains(t, formula, update.Previous)
+	assert.Contains(t, formula, "877bfd6e35773e4b902153bdbd89877bf3605ba4")
+	assert.NotContains(t, formula, "5b5fb72445d2e964acaa62c60307168c009d57c5")
+}
+
 func testUpdate(t *testing.T, fixture string, dep updater.Dependency, next string) (updater.Update, string) {
 	update := updater.Update{Path: dep.Path, Previous: dep.Version, Next: next}
 

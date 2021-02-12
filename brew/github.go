@@ -2,6 +2,7 @@ package brew
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
 	"errors"
@@ -290,6 +291,9 @@ func isHashAsset(ctx context.Context, client *http.Client, assetURL string, oldH
 
 func hasher(oldHash string) (hash.Hash, bool) {
 	switch len(oldHash) {
+	case 40:
+		logrus.Warn("consider upgrading formula from sha1")
+		return sha1.New(), true
 	case 64:
 		return sha256.New(), true
 	case 128:
