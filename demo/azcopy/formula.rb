@@ -7,5 +7,5 @@ class AzCopy < DebianFormula
   name 'azcopy'
   arch 'x86_64'
 
-  build_depends 'golang (= 1.15.6+thepwagner1)'
+  build_depends 'golang (= 1.15.8+thepwagner1)'
 end
