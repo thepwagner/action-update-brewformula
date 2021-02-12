@@ -19,3 +19,4 @@ jobs:
       - uses: thepwagner/action-update-brewformula@main
         with:
           log_level: debug
+          ignore: vendor/**
