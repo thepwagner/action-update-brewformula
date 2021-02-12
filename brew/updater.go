@@ -85,9 +85,12 @@ func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash
 	switch {
 	case strings.HasPrefix(update.Path, "https://github.com/"):
 		return updatedGitHubHash(ctx, u.client, u.ghRepos, update, oldHash)
+	case strings.HasPrefix(update.Path, "https://golang.org/dl/go"):
+		return updatedGolangHash(ctx, u.client, update, oldHash)
 	}
 	return "", nil
 }
+
 
 func (u Updater) eachFormula(process func(path, formula string) error) error {
 	formulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))

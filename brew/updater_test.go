@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thepwagner/action-update-brewformula/brew"
@@ -22,6 +23,10 @@ var (
 	golang1156 = updater.Dependency{Path: "https://golang.org/dl/go#{VERSION}.linux-amd64.tar.gz", Version: "1.15.6"}
 	libvirt102 = updater.Dependency{Path: "https://libvirt.org/sources/libvirt-#{VERSION}.tar.gz", Version: "1.0.2"}
 )
+
+func init() {
+	logrus.SetLevel(logrus.DebugLevel)
+}
 
 func TestUpdater_Dependencies(t *testing.T) {
 	updatertest.DependenciesFixtures(t, &testFactory{}, map[string][]updater.Dependency{
@@ -61,17 +66,27 @@ func TestUpdater_Check_Libvirt(t *testing.T) {
 
 func TestUpdater_Update_GitHubRelease(t *testing.T) {
 	t.Skip("downloads assets")
-	update := updater.Update{Path: azCopy1070.Path, Previous: azCopy1070.Version, Next: "10.8.0"}
-
-	tmpDir := updatertest.ApplyUpdateToFixture(t, "azcopy", &testFactory{}, update)
-	updated, err := ioutil.ReadFile(filepath.Join(tmpDir, "azcopy.rb"))
-	require.NoError(t, err)
-	formula := string(updated)
-
+	update, formula := testUpdate(t, "azcopy", azCopy1070, "10.8.0")
 	assert.Contains(t, formula, update.Next)
 	assert.NotContains(t, formula, update.Previous)
-
-	// Sha is updated - no SHASUMS is attached so this artifact must be downloaded
 	assert.Contains(t, formula, "95866844ff1bb315879b2f1ef70f7076a4cae2391d289af474d75ee2ca3b023c")
 	assert.NotContains(t, formula, "cfdc53dd2c5d30adddeb5270310ff566b4417a9f5eec6c9f6dfbe10d1feb6213")
+}
+
+func TestUpdater_Update_Golang(t *testing.T) {
+	// SHA is updated from index
+	update, formula := testUpdate(t, "go", golang1156, "1.15.8")
+	assert.Contains(t, formula, update.Next)
+	assert.NotContains(t, formula, update.Previous)
+	assert.Contains(t, formula, "d3379c32a90fdf9382166f8f48034c459a8cc433730bc9476d39d9082c94583b")
+	assert.NotContains(t, formula, "3918e6cc85e7eaaa6f859f1bdbaac772e7a825b0eb423c63d3ae68b21f84b844")
+}
+
+func testUpdate(t *testing.T, fixture string, dep updater.Dependency, next string) (updater.Update, string) {
+	update := updater.Update{Path: dep.Path, Previous: dep.Version, Next: next}
+
+	tmpDir := updatertest.ApplyUpdateToFixture(t, fixture, &testFactory{}, update)
+	updated, err := ioutil.ReadFile(filepath.Join(tmpDir, "formula.rb"))
+	require.NoError(t, err)
+	return update, string(updated)
 }
