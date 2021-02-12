@@ -3,12 +3,18 @@ package brew
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/sirupsen/logrus"
 	"github.com/thepwagner/action-update/updater"
 	"golang.org/x/mod/semver"
 )
@@ -85,7 +91,7 @@ func getListing(dep updater.Dependency) (string, string, error) {
 	return "", "", fmt.Errorf("could not find version in URL %s", dep.Path)
 }
 
-func updatedApacheHash(ctx context.Context, client *http.Client, update updater.Update, oldHash string) (string, error) {
+func updatedApacheHash(ctx context.Context, client *http.Client, update updater.Update, oldHash string, gpg bool) (string, error) {
 	oldURL := versionTemplate.ReplaceAllString(update.Path, update.Previous)
 	if ok, err := isHashAsset(ctx, client, oldURL, oldHash); err != nil {
 		return "", err
@@ -93,5 +99,78 @@ func updatedApacheHash(ctx context.Context, client *http.Client, update updater.
 		return "", nil
 	}
 
-	return updatedHashFromAsset(ctx, client, oldURL, update, oldHash)
+	var signature string
+	if gpg {
+		var err error
+		signature, err = getUpdatedSignature(ctx, client, update, oldURL)
+		if err != nil {
+			logrus.WithError(err).Warn("error fetching updated signature, ignoring...")
+		} else if signature == "" {
+			logrus.Debug("no signature file detected")
+		}
+	}
+
+	res, err := getUpdatedAsset(ctx, client, oldURL, update)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	updatedFn := filepath.Base(updatedURL(oldURL, update))
+	h, _ := hasher(oldHash)
+	var assetOut io.Writer
+	var sigDir string
+	if signature == "" {
+		assetOut = h
+	} else {
+		sigDir, err = ioutil.TempDir("", "signature-*")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(sigDir)
+
+		assetFile, err := os.OpenFile(filepath.Join(sigDir, updatedFn), os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return "", err
+		}
+		assetOut = io.MultiWriter(h, assetFile)
+	}
+	if _, err := io.Copy(assetOut, res.Body); err != nil {
+		return "", err
+	}
+
+	if signature != "" {
+		sigFn := fmt.Sprintf("%s.asc", updatedFn)
+		if err := ioutil.WriteFile(filepath.Join(sigDir, sigFn), []byte(signature), 0600); err != nil {
+			return "", err
+		}
+		cmd := exec.CommandContext(ctx, "gpg", "--verify", sigFn)
+		cmd.Dir = sigDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return "", err
+		}
+	}
+
+	sum := h.Sum(nil)
+	return fmt.Sprintf("%x", sum), nil
+}
+
+func getUpdatedSignature(ctx context.Context, client *http.Client, update updater.Update, oldURL string) (string, error) {
+	signatureRes, err := getUpdatedAsset(ctx, client, fmt.Sprintf("%s.asc", oldURL), update)
+	if err != nil {
+		return "", err
+	}
+	defer signatureRes.Body.Close()
+	signatureBody, err := ioutil.ReadAll(signatureRes.Body)
+	if err != nil {
+		return "", err
+	}
+
+	signature := string(signatureBody)
+	if !strings.Contains(signature, "-----BEGIN PGP SIGNATURE-----") {
+		return "", nil
+	}
+	return signature, nil
 }

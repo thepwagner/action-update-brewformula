@@ -249,14 +249,19 @@ func updatedHashFromShasumAsset(ctx context.Context, client *http.Client, asset 
 }
 
 func getUpdatedAsset(ctx context.Context, client *http.Client, oldURL string, update updater.Update) (*http.Response, error) {
-	newURL := strings.ReplaceAll(oldURL, update.Previous, update.Next)
-	newURL = strings.ReplaceAll(newURL, update.Previous[1:], update.Next[1:])
+	newURL := updatedURL(oldURL, update)
 	req, err := http.NewRequest("GET", newURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req = req.WithContext(ctx)
 	return client.Do(req)
+}
+
+func updatedURL(oldURL string, update updater.Update) string {
+	newURL := strings.ReplaceAll(oldURL, update.Previous, update.Next)
+	newURL = strings.ReplaceAll(newURL, update.Previous[1:], update.Next[1:])
+	return newURL
 }
 
 func isHashAsset(ctx context.Context, client *http.Client, assetURL string, oldHash string) (bool, error) {

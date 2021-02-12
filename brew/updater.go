@@ -15,17 +15,30 @@ import (
 type Updater struct {
 	root   string
 	client *http.Client
+	gpg    bool
 
 	ghRepos *github.RepositoriesService
 }
 
-func NewUpdater(root string) *Updater {
+func NewUpdater(root string, opts ...UpdaterOpt) *Updater {
 	client := http.DefaultClient
 	gh := github.NewClient(client)
-	return &Updater{
+	u := &Updater{
 		root:    root,
 		client:  client,
 		ghRepos: gh.Repositories,
+	}
+	for _, o := range opts {
+		o(u)
+	}
+	return u
+}
+
+type UpdaterOpt func(*Updater)
+
+func WithGPG(gpg bool) UpdaterOpt {
+	return func(u *Updater) {
+		u.gpg = gpg
 	}
 }
 
@@ -88,11 +101,9 @@ func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash
 	case strings.HasPrefix(update.Path, "https://golang.org/dl/go"):
 		return updatedGolangHash(ctx, u.client, update, oldHash)
 	default:
-		return updatedApacheHash(ctx, u.client, update, oldHash)
+		return updatedApacheHash(ctx, u.client, update, oldHash, u.gpg)
 	}
 }
-
-
 
 func (u Updater) eachFormula(process func(path, formula string) error) error {
 	formulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
