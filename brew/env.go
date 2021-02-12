@@ -11,5 +11,7 @@ type Environment struct {
 }
 
 func (e *Environment) NewUpdater(root string) updater.Updater {
-	return NewUpdater(root, WithGPG(e.GPG))
+	u := NewUpdater(root, WithGPG(e.GPG))
+	u.pathFilter = e.Ignored
+	return u
 }

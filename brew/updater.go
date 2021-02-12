@@ -8,14 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v3"
 	"github.com/google/go-github/v33/github"
 	"github.com/thepwagner/action-update/updater"
 )
 
 type Updater struct {
-	root   string
-	client *http.Client
-	gpg    bool
+	root       string
+	client     *http.Client
+	gpg        bool
+	pathFilter func(string) bool
 
 	ghRepos *github.RepositoriesService
 }
@@ -105,19 +107,17 @@ func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash
 	}
 }
 
-func (u Updater) eachFormula(process func(path, formula string) error) error {
-	topLvlFormulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
+func (u *Updater) eachFormula(process func(path, formula string) error) error {
+	formulae, err := doublestar.Glob(filepath.Join(u.root, "**", "*.rb"))
 	if err != nil {
 		return fmt.Errorf("globbing formulae: %w", err)
 	}
-
-	formulae, err := filepath.Glob(filepath.Join(u.root, "**/*.rb"))
-	if err != nil {
-		return fmt.Errorf("globbing formulae: %w", err)
-	}
-	formulae = append(formulae, topLvlFormulae...)
 
 	for _, f := range formulae {
+		if u.pathFilter != nil && u.pathFilter(f) {
+			continue
+		}
+
 		formula, err := ioutil.ReadFile(f)
 		if err != nil {
 			return fmt.Errorf("reading formula %s: %w", f, err)
