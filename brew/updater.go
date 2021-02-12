@@ -10,6 +10,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v3"
 	"github.com/google/go-github/v33/github"
+	"github.com/sirupsen/logrus"
 	"github.com/thepwagner/action-update/updater"
 )
 
@@ -77,9 +78,18 @@ func (u Updater) Check(ctx context.Context, dep updater.Dependency, filter func(
 
 func (u Updater) ApplyUpdate(ctx context.Context, update updater.Update) error {
 	return u.eachFormula(func(path, formula string) error {
-		oldnew := []string{
-			update.Previous, update.Next,
+		var oldnew []string
+		if semverIsh(update.Previous) != update.Previous && strings.HasPrefix(update.Next, "v") {
+			oldnew = append(oldnew, update.Previous, update.Next[1:])
+		} else {
+			oldnew = append(oldnew, update.Previous, update.Next)
 		}
+
+		replaced := strings.NewReplacer(oldnew...).Replace(formula)
+		if replaced == formula {
+			return nil
+		}
+
 		if shasums := parseFormulaHashes(formula); len(shasums) == 1 {
 			oldHash := shasums[0]
 			newHash, err := u.updatedHash(ctx, update, oldHash)
@@ -87,16 +97,20 @@ func (u Updater) ApplyUpdate(ctx context.Context, update updater.Update) error {
 				return fmt.Errorf("finding updated hash: %w", err)
 			}
 			if newHash != "" {
-				oldnew = append(oldnew, oldHash, newHash)
+				replaced = strings.ReplaceAll(replaced, oldHash, newHash)
 			}
 		}
 
-		replaced := strings.NewReplacer(oldnew...).Replace(formula)
 		return ioutil.WriteFile(path, []byte(replaced), 0600)
 	})
 }
 
 func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash string) (string, error) {
+	logrus.WithFields(logrus.Fields{
+		"hash":     oldHash,
+		"previous": update.Previous,
+		"next":     update.Next,
+	}).Debug("searching for updated artifact corresponding to hash")
 	switch {
 	case strings.HasPrefix(update.Path, "https://github.com/"):
 		return updatedGitHubHash(ctx, u.client, u.ghRepos, update, oldHash)
