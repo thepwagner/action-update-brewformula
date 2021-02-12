@@ -319,9 +319,10 @@ func updatedHashFromAsset(ctx context.Context, client *http.Client, assetURL str
 		return "", err
 	}
 	sum := h.Sum(nil)
+	newHash := fmt.Sprintf("%x", sum)
 	logrus.WithFields(logrus.Fields{
 		"url":  assetURL,
-		"hash": sum,
+		"hash": newHash,
 	}).Debug("downloaded updated asset")
-	return fmt.Sprintf("%x", sum), nil
+	return newHash, nil
 }
