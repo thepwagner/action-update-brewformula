@@ -3,6 +3,7 @@ package brew
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -33,23 +34,22 @@ func (u Updater) Name() string {
 }
 
 func (u Updater) Dependencies(context.Context) ([]updater.Dependency, error) {
-	formulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
-	if err != nil {
-		return nil, fmt.Errorf("globbing formulae: %w", err)
-	}
-
-	deps := make([]updater.Dependency, 0, len(formulae))
-	for _, f := range formulae {
-		formulaDeps, err := parseFormula(f)
-		if err != nil {
-			return nil, fmt.Errorf("parsing formula %s: %w", f, err)
+	var deps []updater.Dependency
+	err := u.eachFormula(func(_, formula string) error {
+		formulaDeps, err := parseFormulaDeps(formula)
+		if err == nil {
+			deps = append(deps, formulaDeps...)
 		}
-		deps = append(deps, formulaDeps...)
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 	return deps, nil
 }
 
 func (u Updater) Check(ctx context.Context, dep updater.Dependency, filter func(string) bool) (*updater.Update, error) {
+	// FIXME: pass the filter function
 	switch {
 	case strings.HasPrefix(dep.Path, "https://github.com/"):
 		return checkGitHubRelease(ctx, u.ghRepos, dep)
@@ -61,5 +61,47 @@ func (u Updater) Check(ctx context.Context, dep updater.Dependency, filter func(
 }
 
 func (u Updater) ApplyUpdate(ctx context.Context, update updater.Update) error {
-	panic("implement me")
+	return u.eachFormula(func(path, formula string) error {
+		oldnew := []string{
+			update.Previous, update.Next,
+		}
+		if shasums := parseFormulaHashes(formula); len(shasums) == 1 {
+			oldHash := shasums[0]
+			newHash, err := u.updatedHash(ctx, update, oldHash)
+			if err != nil {
+				return fmt.Errorf("finding updated hash: %w", err)
+			}
+			if newHash != "" {
+				oldnew = append(oldnew, oldHash, newHash)
+			}
+		}
+
+		replaced := strings.NewReplacer(oldnew...).Replace(formula)
+		return ioutil.WriteFile(path, []byte(replaced), 0600)
+	})
+}
+
+func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash string) (string, error) {
+	switch {
+	case strings.HasPrefix(update.Path, "https://github.com/"):
+		return updatedGitHubHash(ctx, u.client, u.ghRepos, update, oldHash)
+	}
+	return "", nil
+}
+
+func (u Updater) eachFormula(process func(path, formula string) error) error {
+	formulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
+	if err != nil {
+		return fmt.Errorf("globbing formulae: %w", err)
+	}
+	for _, f := range formulae {
+		formula, err := ioutil.ReadFile(f)
+		if err != nil {
+			return fmt.Errorf("reading formula %s: %w", f, err)
+		}
+		if err := process(f, string(formula)); err != nil {
+			return fmt.Errorf("processing formula %s: %w", f, err)
+		}
+	}
+	return nil
 }

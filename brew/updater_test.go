@@ -1,8 +1,11 @@
 package brew_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thepwagner/action-update-brewformula/brew"
 	"github.com/thepwagner/action-update/updater"
@@ -54,4 +57,21 @@ func TestUpdater_Check_Libvirt(t *testing.T) {
 	update := updatertest.CheckInFixture(t, "versionvar", &testFactory{}, libvirt102, nil)
 	require.NotNil(t, update)
 	t.Log(update.Next)
+}
+
+func TestUpdater_Update_GitHubRelease(t *testing.T) {
+	t.Skip("downloads assets")
+	update := updater.Update{Path: azCopy1070.Path, Previous: azCopy1070.Version, Next: "10.8.0"}
+
+	tmpDir := updatertest.ApplyUpdateToFixture(t, "azcopy", &testFactory{}, update)
+	updated, err := ioutil.ReadFile(filepath.Join(tmpDir, "azcopy.rb"))
+	require.NoError(t, err)
+	formula := string(updated)
+
+	assert.Contains(t, formula, update.Next)
+	assert.NotContains(t, formula, update.Previous)
+
+	// Sha is updated - no SHASUMS is attached so this artifact must be downloaded
+	assert.Contains(t, formula, "95866844ff1bb315879b2f1ef70f7076a4cae2391d289af474d75ee2ca3b023c")
+	assert.NotContains(t, formula, "cfdc53dd2c5d30adddeb5270310ff566b4417a9f5eec6c9f6dfbe10d1feb6213")
 }

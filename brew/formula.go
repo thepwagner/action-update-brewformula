@@ -1,7 +1,6 @@
 package brew
 
 import (
-	"io/ioutil"
 	"regexp"
 
 	"github.com/thepwagner/action-update/updater"
@@ -9,18 +8,13 @@ import (
 
 var (
 	urlRe           = regexp.MustCompile(`url ["'](.*)["']`)
+	shasumRe        = regexp.MustCompile(`sha256 ["'](.*)["']`)
 	versionVarRe    = regexp.MustCompile(`(?i)version\s*=?\s+["'](.*)["']`)
 	versionTemplate = regexp.MustCompile(`(?i)#{version}`)
 	semverRe        = regexp.MustCompile(`\d+\.\d+\.\d+`)
 )
 
-func parseFormula(formulaPath string) ([]updater.Dependency, error) {
-	formulaBytes, err := ioutil.ReadFile(formulaPath)
-	if err != nil {
-		return nil, err
-	}
-	formula := string(formulaBytes)
-
+func parseFormulaDeps(formula string) ([]updater.Dependency, error) {
 	// Find `VERSION =` variables and `url` string:
 	versionVar := versionVarRe.FindStringSubmatch(formula)
 	urlMatch := urlRe.FindAllStringSubmatch(formula, -1)
@@ -45,4 +39,11 @@ func parseFormula(formulaPath string) ([]updater.Dependency, error) {
 	}
 
 	return nil, nil
+}
+
+func parseFormulaHashes(formula string) (sums []string) {
+	for _, m := range shasumRe.FindAllStringSubmatch(formula, -1) {
+		sums = append(sums, m[1])
+	}
+	return
 }
