@@ -106,10 +106,17 @@ func (u Updater) updatedHash(ctx context.Context, update updater.Update, oldHash
 }
 
 func (u Updater) eachFormula(process func(path, formula string) error) error {
-	formulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
+	topLvlFormulae, err := filepath.Glob(filepath.Join(u.root, "*.rb"))
 	if err != nil {
 		return fmt.Errorf("globbing formulae: %w", err)
 	}
+
+	formulae, err := filepath.Glob(filepath.Join(u.root, "**/*.rb"))
+	if err != nil {
+		return fmt.Errorf("globbing formulae: %w", err)
+	}
+	formulae = append(formulae, topLvlFormulae...)
+
 	for _, f := range formulae {
 		formula, err := ioutil.ReadFile(f)
 		if err != nil {
